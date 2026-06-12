@@ -44,7 +44,7 @@ export default function App() {
           const { StatusBar } = await import(/* @vite-ignore */ sbPkg);
           await StatusBar.hide();
 
-          const nbPkg = '@capgo/capacitor-navigationbar';
+          const nbPkg = '@capgo/capacitor-navigation-bar';
           const { NavigationBar } = await import(/* @vite-ignore */ nbPkg);
           await NavigationBar.hide();
         }
