@@ -44,11 +44,7 @@ export class BackupService {
       photoBlobs: photoBlobsBase64
     };
 
-    const json = JSON.stringify(payload, null, 2);
-    if (new Blob([json]).size > 500 * 1024 * 1024) {
-      alert('Warning: Backup size exceeds 500MB. It might fail on some devices.');
-    }
-    return json;
+    return JSON.stringify(payload, null, 2);
   }
 
   static async createManualBackup(user: string): Promise<BackupHistoryLog> {
@@ -111,62 +107,25 @@ export class BackupService {
   }
 
   static async downloadOrShare(filename: string, mimeType: string, content: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const base64 = String(reader.result).split(',')[1];
+    const fsPkg = '@capacitor/filesystem';
+    const { Filesystem, Directory } = await import(/* @vite-ignore */ fsPkg);
+    const sharePkg = '@capacitor/share';
+    const { Share } = await import(/* @vite-ignore */ sharePkg);
 
-          // Try Capacitor Plugins first
-          try {
-            const corePkg = '@capacitor/core';
-            const { Capacitor } = await import(/* @vite-ignore */ corePkg);
-            if (Capacitor.isNativePlatform()) {
-              const fsPkg = '@capacitor/filesystem';
-              const { Filesystem, Directory } = await import(/* @vite-ignore */ fsPkg);
-              const sharePkg = '@capacitor/share';
-              const { Share } = await import(/* @vite-ignore */ sharePkg);
+    // Convert string content to base64
+    const base64 = btoa(unescape(encodeURIComponent(content)));
 
-              const result = await Filesystem.writeFile({
-                path: filename,
-                data: base64,
-                directory: Directory.Cache
-              });
+    const result = await Filesystem.writeFile({
+      path: filename,
+      data: base64,
+      directory: Directory.Cache
+    });
 
-              await Share.share({
-                title: filename,
-                text: 'Exporting OrthoTrackr Backup',
-                url: result.uri,
-                dialogTitle: 'Save backup'
-              });
-              resolve();
-              return;
-            }
-          } catch (e) {
-            console.warn('Capacitor plugin failed', e);
-          }
-
-          const android = getAndroidBridge();
-          if (android?.saveFile) {
-            android.saveFile(base64, mimeType, filename);
-            resolve();
-            return;
-          }
-
-          const blob = new Blob([content], { type: mimeType });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = filename;
-          link.click();
-          URL.revokeObjectURL(url);
-          resolve();
-        } catch (e) {
-          reject(e);
-        }
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(new Blob([content], { type: mimeType }));
+    await Share.share({
+      title: filename,
+      text: 'Exporting OrthoTrackr Backup',
+      url: result.uri,
+      dialogTitle: 'Save backup'
     });
   }
 }
@@ -187,14 +146,6 @@ function makeBackupLog(action: string, user: string, backupData: string): Backup
 async function getAll<T>(db: IDBDatabase, storeName: string): Promise<T[]> {
   const tx = db.transaction(storeName, 'readonly');
   return idbRequest(tx.objectStore(storeName).getAll()) as Promise<T[]>;
-}
-
-function getAndroidBridge(): { saveFile?: (base64Data: string, mimeType: string, fileName: string) => void } | undefined {
-  const maybeWindow = window as Window & {
-    AndroidInterface?: { saveFile?: (base64Data: string, mimeType: string, fileName: string) => void };
-    Android?: { saveFile?: (base64Data: string, mimeType: string, fileName: string) => void };
-  };
-  return maybeWindow.AndroidInterface ?? maybeWindow.Android;
 }
 
 async function blobToBase64(blob: Blob): Promise<string> {

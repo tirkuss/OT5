@@ -1,4 +1,4 @@
-import { Copy, DatabaseBackup, Download, Upload, Settings, Save } from 'lucide-react';
+import { Copy, DatabaseBackup, Download, Upload, Save } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { BackupRepository } from '../../repositories/backup.repository';
@@ -9,7 +9,6 @@ import { useSession } from '../../hooks/useSession';
 export function AdminPage({ doctorName }: { doctorName: string }) {
   const session = useSession();
   const [restoreText, setRestoreText] = useState('');
-  const [lockTimer, setLockTimer] = useState(session.profile?.lockTimer ?? 15);
   const queryClient = useQueryClient();
   const backups = useQuery({ queryKey: ['backups'], queryFn: () => BackupRepository.list() });
 
@@ -21,15 +20,10 @@ export function AdminPage({ doctorName }: { doctorName: string }) {
 
   async function copyBackup() {
     const json = await BackupService.exportJson();
-    try {
-      const clipPkg = '@capacitor/clipboard';
-      const { Clipboard } = await import(/* @vite-ignore */ clipPkg);
-      await Clipboard.write({ string: json });
-      alert('Backup JSON copied to clipboard!');
-    } catch (e) {
-      await navigator.clipboard.writeText(json);
-      alert('Backup JSON copied to clipboard!');
-    }
+    const clipPkg = '@capacitor/clipboard';
+    const { Clipboard } = await import(/* @vite-ignore */ clipPkg);
+    await Clipboard.write({ string: json });
+    alert('Backup JSON copied to clipboard!');
   }
 
   async function restore(event: FormEvent) {
@@ -37,13 +31,6 @@ export function AdminPage({ doctorName }: { doctorName: string }) {
     await BackupService.restoreFromJson(restoreText);
     setRestoreText('');
     await queryClient.invalidateQueries();
-  }
-
-  async function saveConfig(event: FormEvent) {
-    event.preventDefault();
-    if (session.profile) {
-      await session.setup({ ...session.profile, lockTimer }, '');
-    }
   }
 
   return (
@@ -54,21 +41,6 @@ export function AdminPage({ doctorName }: { doctorName: string }) {
           <h2>Admin</h2>
         </div>
       </div>
-
-      <form className="clinical-form" onSubmit={saveConfig}>
-        <h3><Settings size={18} /> Configuration</h3>
-        <label>
-          Lock Timer (minutes)
-          <input 
-            type="number" 
-            min="0" 
-            value={lockTimer} 
-            onChange={(event) => setLockTimer(Number(event.target.value))} 
-          />
-          <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>Set to 0 to disable auto-lock.</small>
-        </label>
-        <button className="primary-button" type="submit"><Save size={18} /> Save configuration</button>
-      </form>
 
       <div className="action-grid">
         <button className="metric-card" onClick={exportBackup}><Download /><strong>Export</strong><span>JSON backup</span></button>

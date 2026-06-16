@@ -41,54 +41,30 @@ export async function exportPatientPdf(patient: Patient, doctorName: string): Pr
   return blob;
 }
 
-export async function saveBlob(filename: string, mimeType: string, blob: Blob): Promise<void> {
+export async function saveBlob(filename: string, _mimeType: string, blob: Blob): Promise<void> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = async () => {
       try {
         const base64 = String(reader.result).split(',')[1];
 
-        // Try Capacitor Plugins first
-        try {
-          const corePkg = '@capacitor/core';
-          const { Capacitor } = await import(/* @vite-ignore */ corePkg);
-          if (Capacitor.isNativePlatform()) {
-            const fsPkg = '@capacitor/filesystem';
-            const { Filesystem, Directory } = await import(/* @vite-ignore */ fsPkg);
-            const sharePkg = '@capacitor/share';
-            const { Share } = await import(/* @vite-ignore */ sharePkg);
+        const fsPkg = '@capacitor/filesystem';
+        const { Filesystem, Directory } = await import(/* @vite-ignore */ fsPkg);
+        const sharePkg = '@capacitor/share';
+        const { Share } = await import(/* @vite-ignore */ sharePkg);
 
-            const result = await Filesystem.writeFile({
-              path: filename,
-              data: base64,
-              directory: Directory.Cache
-            });
+        const result = await Filesystem.writeFile({
+          path: filename,
+          data: base64,
+          directory: Directory.Cache
+        });
 
-            await Share.share({
-              title: filename,
-              text: 'OrthoTrackr Patient PDF',
-              url: result.uri,
-              dialogTitle: 'Save PDF'
-            });
-            resolve();
-            return;
-          }
-        } catch (e) {
-          console.warn('Capacitor plugin failed', e);
-        }
-
-        const android = getAndroidBridge();
-        if (android?.saveFile) {
-          android.saveFile(base64, mimeType, filename);
-          resolve();
-          return;
-        }
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.click();
-        URL.revokeObjectURL(url);
+        await Share.share({
+          title: filename,
+          text: 'OrthoTrackr Patient PDF',
+          url: result.uri,
+          dialogTitle: 'Save PDF'
+        });
         resolve();
       } catch (e) {
         reject(e);
@@ -97,12 +73,4 @@ export async function saveBlob(filename: string, mimeType: string, blob: Blob): 
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(blob);
   });
-}
-
-function getAndroidBridge(): { saveFile?: (base64Data: string, mimeType: string, fileName: string) => void } | undefined {
-  const maybeWindow = window as Window & {
-    AndroidInterface?: { saveFile?: (base64Data: string, mimeType: string, fileName: string) => void };
-    Android?: { saveFile?: (base64Data: string, mimeType: string, fileName: string) => void };
-  };
-  return maybeWindow.AndroidInterface ?? maybeWindow.Android;
 }

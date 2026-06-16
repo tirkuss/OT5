@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useEffect } from 'react';
 import { AppShell } from './components/layout/AppShell';
 import { OnboardingPage } from './features/onboarding/OnboardingPage';
-import { LockScreen } from './features/onboarding/LockScreen';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { PatientsPage } from './features/patients/PatientsPage';
 import { PatientProfilePage } from './features/patients/PatientProfilePage';
@@ -29,8 +28,13 @@ export default function App() {
           // 1. Back button exit confirmation
           const appPkg = '@capacitor/app';
           const { App: NativeApp } = await import(/* @vite-ignore */ appPkg);
-          await NativeApp.addListener('backButton', async (data: { canGoBack: boolean }) => {
-            if (!data.canGoBack) {
+
+          // Remove existing listeners to avoid duplicates
+          await NativeApp.removeAllListeners();
+
+          await NativeApp.addListener('backButton', async () => {
+            const path = window.location.pathname;
+            if (path === '/' || path === '/dashboard') {
               if (confirm('Are you sure you want to exit OrthoTrackr?')) {
                 NativeApp.exitApp();
               }
@@ -46,6 +50,7 @@ export default function App() {
 
           const nbPkg = '@capgo/capacitor-navigation-bar';
           const { NavigationBar } = await import(/* @vite-ignore */ nbPkg);
+          // @capgo/capacitor-navigation-bar v6 uses .hide() for immersive
           await NavigationBar.hide();
         }
       } catch (e) {
@@ -54,13 +59,12 @@ export default function App() {
     };
 
     setupNative();
-  }, [session.isUnlocked, session.profile]);
+  }, [session.isUnlocked, session.profile?.doctorName]);
 
   if (session.needsSetup) return <OnboardingPage onSetup={session.setup} />;
-  if (!session.isUnlocked) return <LockScreen onUnlock={session.unlock} />;
 
   return (
-    <AppShell profile={session.profile} onLock={session.lock}>
+    <AppShell profile={session.profile}>
       <Routes>
         <Route path="/" element={<DashboardPage doctorName={doctorName} />} />
         <Route path="/patients" element={<PatientsPage doctorName={doctorName} />} />
