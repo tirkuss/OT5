@@ -42,35 +42,31 @@ export async function exportPatientPdf(patient: Patient, doctorName: string): Pr
 }
 
 export async function saveBlob(filename: string, _mimeType: string, blob: Blob): Promise<void> {
-  return new Promise((resolve, reject) => {
+  const base64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const base64 = String(reader.result).split(',')[1];
-
-        const fsPkg = '@capacitor/filesystem';
-        const { Filesystem, Directory } = await import(/* @vite-ignore */ fsPkg);
-        const sharePkg = '@capacitor/share';
-        const { Share } = await import(/* @vite-ignore */ sharePkg);
-
-        const result = await Filesystem.writeFile({
-          path: filename,
-          data: base64,
-          directory: Directory.Cache
-        });
-
-        await Share.share({
-          title: filename,
-          text: 'OrthoTrackr Patient PDF',
-          url: result.uri,
-          dialogTitle: 'Save PDF'
-        });
-        resolve();
-      } catch (e) {
-        reject(e);
-      }
+    reader.onloadend = () => {
+      const base64String = (reader.result as string).split(',')[1];
+      resolve(base64String);
     };
-    reader.onerror = () => reject(reader.error);
+    reader.onerror = reject;
     reader.readAsDataURL(blob);
+  });
+
+  const fsPkg = '@capacitor/filesystem';
+  const { Filesystem, Directory } = await import(/* @vite-ignore */ fsPkg);
+  const sharePkg = '@capacitor/share';
+  const { Share } = await import(/* @vite-ignore */ sharePkg);
+
+  const result = await Filesystem.writeFile({
+    path: filename,
+    data: base64,
+    directory: Directory.Cache
+  });
+
+  await Share.share({
+    title: filename,
+    text: 'OrthoTrackr Patient PDF',
+    url: result.uri,
+    dialogTitle: 'Save PDF'
   });
 }

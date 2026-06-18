@@ -15,10 +15,6 @@ export default function App() {
   const doctorName = session.profile?.doctorName ?? 'Doctor';
 
   useEffect(() => {
-    if (session.isUnlocked && session.profile) {
-      BackupService.maybeCreateDailyBackup(session.profile.doctorName).catch(console.error);
-    }
-
     // Android Native Enhancements
     const setupNative = async () => {
       try {

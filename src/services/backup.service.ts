@@ -4,8 +4,6 @@ import { BackupRepository } from '../repositories/backup.repository';
 import type { Appointment, AuditLog, BackupHistoryLog, BackupPayload, Patient, PhotoMetadata } from '../types';
 import { randomId } from './crypto.service';
 
-const lastBackupKey = 'orthotrackr_last_auto_backup_date';
-
 export class BackupService {
   static async exportJson(incrementalSince?: string): Promise<string> {
     const db = await openDatabase();
@@ -38,7 +36,7 @@ export class BackupService {
       schemaVersion: 4,
       patients,
       appointments,
-      backupLogs: await getAll<BackupHistoryLog>(db, stores.backupHistory),
+      backupLogs: [], // Exclude backup history to prevent exponential size bloat
       auditLogs: await getAll<AuditLog>(db, stores.auditTrail),
       photoMetadata: allPhotoMetadata,
       photoBlobs: photoBlobsBase64
@@ -52,15 +50,6 @@ export class BackupService {
     const log = makeBackupLog('Manual JSON Backup', user, backupData);
     await BackupRepository.add(log);
     return log;
-  }
-
-  static async maybeCreateDailyBackup(user: string): Promise<void> {
-    const today = new Date().toISOString().slice(0, 10);
-    if (localStorage.getItem(lastBackupKey) === today) return;
-    const backupData = await this.exportJson();
-    await BackupRepository.add(makeBackupLog('Automated Daily Backup', user, backupData));
-    await BackupRepository.keepLatest(7);
-    localStorage.setItem(lastBackupKey, today);
   }
 
   static async restoreFromJson(json: string): Promise<void> {
@@ -112,8 +101,8 @@ export class BackupService {
     const sharePkg = '@capacitor/share';
     const { Share } = await import(/* @vite-ignore */ sharePkg);
 
-    // Convert string content to base64
-    const base64 = btoa(unescape(encodeURIComponent(content)));
+    // More robust base64 encoding for potentially large JSON strings
+    const base64 = btoa(new TextEncoder().encode(content).reduce((data, byte) => data + String.fromCharCode(byte), ''));
 
     const result = await Filesystem.writeFile({
       path: filename,
@@ -139,7 +128,7 @@ function makeBackupLog(action: string, user: string, backupData: string): Backup
     initiatedBy: user,
     status: 'COMPLETED',
     fileSize: `${sizeMb.toFixed(3)} MB`,
-    backupData
+    backupData: '' // Do not store the actual backup JSON string in IndexedDB to prevent exponential DB growth
   };
 }
 

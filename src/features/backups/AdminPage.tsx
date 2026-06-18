@@ -1,4 +1,4 @@
-import { Copy, DatabaseBackup, Download, Upload, Save } from 'lucide-react';
+import { Copy, DatabaseBackup, Download, Upload } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { BackupRepository } from '../../repositories/backup.repository';
@@ -7,30 +7,42 @@ import { formatDate } from '../../utils/date';
 import { useSession } from '../../hooks/useSession';
 
 export function AdminPage({ doctorName }: { doctorName: string }) {
-  const session = useSession();
   const [restoreText, setRestoreText] = useState('');
   const queryClient = useQueryClient();
   const backups = useQuery({ queryKey: ['backups'], queryFn: () => BackupRepository.list() });
 
   async function exportBackup() {
-    const log = await BackupService.createManualBackup(doctorName);
-    BackupService.downloadOrShare(`orthotrackr_backup_${Date.now()}.json`, 'application/json', log.backupData ?? '');
-    await queryClient.invalidateQueries({ queryKey: ['backups'] });
+    try {
+      const log = await BackupService.createManualBackup(doctorName);
+      await BackupService.downloadOrShare(`orthotrackr_backup_${Date.now()}.json`, 'application/json', log.backupData ?? '');
+      await queryClient.invalidateQueries({ queryKey: ['backups'] });
+    } catch (e) {
+      alert('Export failed: ' + (e instanceof Error ? e.message : String(e)));
+    }
   }
 
   async function copyBackup() {
-    const json = await BackupService.exportJson();
-    const clipPkg = '@capacitor/clipboard';
-    const { Clipboard } = await import(/* @vite-ignore */ clipPkg);
-    await Clipboard.write({ string: json });
-    alert('Backup JSON copied to clipboard!');
+    try {
+      const json = await BackupService.exportJson();
+      const clipPkg = '@capacitor/clipboard';
+      const { Clipboard } = await import(/* @vite-ignore */ clipPkg);
+      await Clipboard.write({ string: json });
+      alert('Backup JSON copied to clipboard!');
+    } catch (e) {
+      alert('Copy failed: ' + (e instanceof Error ? e.message : String(e)));
+    }
   }
 
   async function restore(event: FormEvent) {
     event.preventDefault();
-    await BackupService.restoreFromJson(restoreText);
-    setRestoreText('');
-    await queryClient.invalidateQueries();
+    try {
+      await BackupService.restoreFromJson(restoreText);
+      setRestoreText('');
+      await queryClient.invalidateQueries();
+      alert('Restore successful!');
+    } catch (e) {
+      alert('Restore failed: ' + (e instanceof Error ? e.message : String(e)));
+    }
   }
 
   return (
@@ -54,8 +66,8 @@ export function AdminPage({ doctorName }: { doctorName: string }) {
       </form>
 
       <div className="panel">
-        <h3><DatabaseBackup size={18} /> Rolling backups</h3>
-        {(backups.data ?? []).slice(0, 7).map((backup) => (
+        <h3><DatabaseBackup size={18} /> Backup history</h3>
+        {(backups.data ?? []).slice(0, 3).map((backup) => (
           <article className="audit-row" key={backup.id}>
             <strong>{backup.action}</strong>
             <span>{backup.fileSize} · {backup.status}</span>
