@@ -1,8 +1,8 @@
-import { CalendarDays, Database, Home, Lock, UsersRound } from 'lucide-react';
+import { CalendarDays, Database, Home, UsersRound } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import type { DoctorProfile } from '../../types';
 
-export function AppShell({ children, profile, onLock }: { children: React.ReactNode; profile: DoctorProfile | null; onLock: () => void }) {
+export function AppShell({ children, profile }: { children: React.ReactNode; profile: DoctorProfile | null }) {
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -10,9 +10,6 @@ export function AppShell({ children, profile, onLock }: { children: React.ReactN
           <p className="eyebrow">Offline Patient Database</p>
           <h1>OrthoTrackr</h1>
         </div>
-        <button className="icon-button" onClick={onLock} title="Lock vault" aria-label="Lock vault">
-          <Lock size={20} />
-        </button>
       </header>
 
       <main className="content">

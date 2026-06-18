@@ -1,4 +1,4 @@
-import { Copy, DatabaseBackup, Download, Upload, Settings, Save } from 'lucide-react';
+import { Copy, DatabaseBackup, Download, Upload } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { BackupRepository } from '../../repositories/backup.repository';
@@ -7,42 +7,41 @@ import { formatDate } from '../../utils/date';
 import { useSession } from '../../hooks/useSession';
 
 export function AdminPage({ doctorName }: { doctorName: string }) {
-  const session = useSession();
   const [restoreText, setRestoreText] = useState('');
-  const [lockTimer, setLockTimer] = useState(session.profile?.lockTimer ?? 15);
   const queryClient = useQueryClient();
   const backups = useQuery({ queryKey: ['backups'], queryFn: () => BackupRepository.list() });
 
   async function exportBackup() {
-    const log = await BackupService.createManualBackup(doctorName);
-    BackupService.downloadOrShare(`orthotrackr_backup_${Date.now()}.json`, 'application/json', log.backupData ?? '');
-    await queryClient.invalidateQueries({ queryKey: ['backups'] });
+    try {
+      const log = await BackupService.createManualBackup(doctorName);
+      await BackupService.downloadOrShare(`orthotrackr_backup_${Date.now()}.json`, 'application/json', log.backupData ?? '');
+      await queryClient.invalidateQueries({ queryKey: ['backups'] });
+    } catch (e) {
+      alert('Export failed: ' + (e instanceof Error ? e.message : String(e)));
+    }
   }
 
   async function copyBackup() {
-    const json = await BackupService.exportJson();
     try {
+      const json = await BackupService.exportJson();
       const clipPkg = '@capacitor/clipboard';
       const { Clipboard } = await import(/* @vite-ignore */ clipPkg);
       await Clipboard.write({ string: json });
       alert('Backup JSON copied to clipboard!');
     } catch (e) {
-      await navigator.clipboard.writeText(json);
-      alert('Backup JSON copied to clipboard!');
+      alert('Copy failed: ' + (e instanceof Error ? e.message : String(e)));
     }
   }
 
   async function restore(event: FormEvent) {
     event.preventDefault();
-    await BackupService.restoreFromJson(restoreText);
-    setRestoreText('');
-    await queryClient.invalidateQueries();
-  }
-
-  async function saveConfig(event: FormEvent) {
-    event.preventDefault();
-    if (session.profile) {
-      await session.setup({ ...session.profile, lockTimer }, '');
+    try {
+      await BackupService.restoreFromJson(restoreText);
+      setRestoreText('');
+      await queryClient.invalidateQueries();
+      alert('Restore successful!');
+    } catch (e) {
+      alert('Restore failed: ' + (e instanceof Error ? e.message : String(e)));
     }
   }
 
@@ -54,21 +53,6 @@ export function AdminPage({ doctorName }: { doctorName: string }) {
           <h2>Admin</h2>
         </div>
       </div>
-
-      <form className="clinical-form" onSubmit={saveConfig}>
-        <h3><Settings size={18} /> Configuration</h3>
-        <label>
-          Lock Timer (minutes)
-          <input 
-            type="number" 
-            min="0" 
-            value={lockTimer} 
-            onChange={(event) => setLockTimer(Number(event.target.value))} 
-          />
-          <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>Set to 0 to disable auto-lock.</small>
-        </label>
-        <button className="primary-button" type="submit"><Save size={18} /> Save configuration</button>
-      </form>
 
       <div className="action-grid">
         <button className="metric-card" onClick={exportBackup}><Download /><strong>Export</strong><span>JSON backup</span></button>
@@ -82,8 +66,8 @@ export function AdminPage({ doctorName }: { doctorName: string }) {
       </form>
 
       <div className="panel">
-        <h3><DatabaseBackup size={18} /> Rolling backups</h3>
-        {(backups.data ?? []).slice(0, 7).map((backup) => (
+        <h3><DatabaseBackup size={18} /> Backup history</h3>
+        {(backups.data ?? []).slice(0, 3).map((backup) => (
           <article className="audit-row" key={backup.id}>
             <strong>{backup.action}</strong>
             <span>{backup.fileSize} · {backup.status}</span>
